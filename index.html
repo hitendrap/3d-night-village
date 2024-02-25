@@ -109,7 +109,7 @@
             wall4.isVisible = false;
             wall4.checkCollisions = true;
 
-            BABYLON.SceneLoader.ImportMeshAsync("", "/models/", "rooms2.glb").then((result) => {
+            BABYLON.SceneLoader.ImportMeshAsync("", "./models/", "rooms2.glb").then((result) => {
                 console.log(result.meshes);
                 const room = result.meshes[1];
                 // room.scaling = new BABYLON.Vector3(1, 0.7, 0.7);
