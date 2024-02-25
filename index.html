@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Babylon Template</title>
+
+    <style>
+        html,
+        body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+    </style>
+    <!-- <script src="https://cdn.babylonjs.com/babylon.js"></script> -->
+    <script src="./babylon.max.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.js"></script>
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.js"></script>
+
+</head>
+
+<body>
+
+    <canvas id="renderCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("renderCanvas"); // Get the canvas element
+        const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+
+        const createScene = function () {
+            // This creates a basic Babylon Scene object (non-mesh)
+            const scene = new BABYLON.Scene(engine);
+
+            // This creates and positions a free camera (non-mesh)
+            const camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(0, 10, 120), scene);
+
+            // This targets the camera to scene origin
+            camera.setTarget(BABYLON.Vector3.Zero());
+
+            // This attaches the camera to the canvas
+            camera.attachControl(canvas, true);
+            // Allow the camera to move through the skybox
+            camera.applyGravity = true;
+            camera.checkCollisions = true;
+            camera.speed = 0.5;
+            camera.inputs.add(new FreeCameraTouchVirtualJoystickInput())
+
+            // wasd controls
+            camera.keysUp.push(87); // W
+            camera.keysDown.push(83); // S
+            camera.keysLeft.push(65); // A
+            camera.keysRight.push(68); // D
+
+            // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 0, 0), scene);
+            // light.intensity = 0.7;
+
+            const groundMaterial = new BABYLON.StandardMaterial("ground", scene);
+            groundMaterial.diffuseTexture = new BABYLON.Texture("textures/grass.jpg", scene);
+            groundMaterial.diffuseTexture.uScale = 100;
+            groundMaterial.diffuseTexture.vScale = 100;
+
+
+            // Our built-in 'ground' shape.
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 1500, height: 1500 }, scene);
+            ground.position.y = -0.1;
+            ground.material = groundMaterial;
+            ground.checkCollisions = true;
+
+            // Create a skybox
+            const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", { size: 1500.0 }, scene);
+            const skyboxMaterial = new BABYLON.StandardMaterial("skyBox", scene);
+            skyboxMaterial.backFaceCulling = false;
+            skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture("textures/skybox", scene);
+            skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+            skyboxMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
+            skyboxMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
+            skybox.material = skyboxMaterial;
+            skybox.checkCollisions = true;
+
+            // create invisible walls to keep the player in the game
+            const wall1 = BABYLON.MeshBuilder.CreateBox("wall1", { width: 1500, height: 1000, depth: 10 }, scene);
+            wall1.position = new BABYLON.Vector3(0, 50, 750);
+            wall1.isVisible = false;
+            wall1.checkCollisions = true;
+
+            const wall2 = BABYLON.MeshBuilder.CreateBox("wall2", { width: 1500, height: 1000, depth: 10 }, scene);
+            wall2.position = new BABYLON.Vector3(0, 50, -750);
+            wall2.isVisible = false;
+            wall2.checkCollisions = true;
+
+            const wall3 = BABYLON.MeshBuilder.CreateBox("wall3", { width: 10, height: 1000, depth: 1500 }, scene);
+            wall3.position = new BABYLON.Vector3(750, 50, 0);
+            wall3.isVisible = false;
+            wall3.checkCollisions = true;
+
+            const wall4 = BABYLON.MeshBuilder.CreateBox("wall4", { width: 10, height: 1000, depth: 1500 }, scene);
+            wall4.position = new BABYLON.Vector3(-750, 50, 0);
+            wall4.isVisible = false;
+            wall4.checkCollisions = true;
+
+            BABYLON.SceneLoader.ImportMeshAsync("", "/models/", "rooms2.glb").then((result) => {
+                console.log(result.meshes);
+                const room = result.meshes[1];
+                // room.scaling = new BABYLON.Vector3(1, 0.7, 0.7);
+                // room.checkCollisions = true;
+            });
+
+            return scene;
+        };
+
+        class FreeCameraTouchVirtualJoystickInput extends BABYLON.BaseCameraPointersInput {
+            SWIPE_SENSIBILITY = 0.5;
+            JOYSTICK_COLOR = "LightGray";
+            JOYSTICK_TOUCH_AREA_HORIZONTAL_SCREEN_SHARE = 0.5;
+            JOYSTICK_CIRCLE_SIZE_VERTICAL_SCREEN_SHARE = 0.1;
+            JOYSTICK_PUCK_SIZE_VERTICAL_SCREEN_SHARE = 0.05;
+            JOYSTICK_OUTER_CIRCLE_THICKNESS_RATIO = 0.01;
+            JOYSTICK_INNER_CIRCLE_THICKNESS_RATIO = 0.04;
+            JOYSTICK_PUCK_THICKNESS_RATIO = 0.01;
+
+            camera;
+            joystickDelta = BABYLON.Vector2.Zero();
+            screenSize;
+            ui;
+            joystickPointerId;
+            joystickButtonDownPos;
+            joystickButtonDownPosOffset;
+            joystickContainer;
+            joystickOuterCirce;
+            joystickInnerCircle;
+            joystickPuck;
+            joystickCircleRadius;
+            joystickPuckRadius;
+
+            getClassName = () => this.constructor.name;
+
+            getSimpleName = () => "joystick"
+
+            attachControl(noPreventDefault) {
+                super.attachControl(noPreventDefault);
+                this.screenSize = FreeCameraTouchVirtualJoystickInput.getScreenSize();
+                this.ui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+                this.prepareImages(this.screenSize.y);
+                BABYLON.EngineStore.LastCreatedEngine.onResizeObservable.add(this.resize);
+            }
+
+            prepareImages() {
+                this.joystickCircleRadius = this.screenSize.y * this.JOYSTICK_CIRCLE_SIZE_VERTICAL_SCREEN_SHARE;
+                this.joystickPuckRadius = this.screenSize.y * this.JOYSTICK_PUCK_SIZE_VERTICAL_SCREEN_SHARE;
+
+                this.joystickContainer = new BABYLON.GUI.Container("virtual_joystick");
+                let containerSize = this.joystickCircleRadius * 2 + this.joystickPuckRadius * 2 + 1;
+                this.joystickContainer.widthInPixels = containerSize;
+                this.joystickContainer.heightInPixels = containerSize;
+                this.joystickContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+                this.joystickContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+
+                this.joystickOuterCirce = this.prepareJoystickCircle(
+                    this.joystickCircleRadius,
+                    containerSize * this.JOYSTICK_OUTER_CIRCLE_THICKNESS_RATIO,
+                );
+                this.joystickInnerCircle = this.prepareJoystickCircle(
+                    this.joystickPuckRadius,
+                    containerSize * this.JOYSTICK_INNER_CIRCLE_THICKNESS_RATIO,
+                );
+                this.joystickPuck = this.prepareJoystickCircle(
+                    this.joystickPuckRadius,
+                    containerSize * this.JOYSTICK_PUCK_THICKNESS_RATIO,
+                );
+
+                this.joystickContainer.addControl(this.joystickOuterCirce);
+                this.joystickContainer.addControl(this.joystickInnerCircle);
+                this.joystickContainer.addControl(this.joystickPuck);
+                this.joystickContainer.isVisible = false;
+                this.ui.addControl(this.joystickContainer);
+            }
+
+            prepareJoystickCircle(radius, thickness) {
+                let circle = new BABYLON.GUI.Ellipse();
+                circle.widthInPixels = radius * 2;
+                circle.heightInPixels = radius * 2;
+                circle.thickness = thickness;
+                circle.color = this.JOYSTICK_COLOR;
+                circle.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+                circle.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
+                return circle;
+            }
+
+            detachControl() {
+                this.disposeImages();
+                this.ui.dispose();
+                BABYLON.EngineStore.LastCreatedEngine.onResizeObservable.removeCallback(this.resize);
+                super.detachControl();
+            }
+
+            disposeImages() {
+                this.joystickContainer.dispose()
+                this.joystickInnerCircle.dispose();
+                this.joystickOuterCirce.dispose();
+                this.joystickPuck.dispose();
+            }
+
+            resize = () => {
+                this.screenSize = FreeCameraTouchVirtualJoystickInput.getScreenSize();
+                this.disposeImages();
+                this.prepareImages();
+            };
+
+            static getScreenSize() {
+                let engine = BABYLON.EngineStore.LastCreatedEngine;
+                return new BABYLON.Vector2(engine.getRenderWidth(), engine.getRenderHeight());
+            }
+
+            checkInputs() {
+                let joystickMoveVector = new BABYLON.Vector3(this.joystickDelta.x, 0, -this.joystickDelta.y);
+                joystickMoveVector.scaleInPlace(BABYLON.EngineStore.LastCreatedEngine.getDeltaTime() / 1000);
+                this.camera.cameraDirection.addInPlace(
+                    BABYLON.Vector3.TransformCoordinates(joystickMoveVector, BABYLON.Matrix.RotationY(this.camera.rotation.y)),
+                );
+            }
+
+            onTouch(point, offsetX, offsetY) {
+                if (point.pointerId === this.joystickPointerId) {
+                    // point refer to global inner window canvas, we need to convert it to local render canvas
+                    this.onTouchJoystick(
+                        new BABYLON.Vector2(point.x, point.y).subtractInPlace(this.joystickButtonDownPosOffset),
+                    );
+                } else {
+                    this.onTouchSwipe(new BABYLON.Vector2(offsetX, offsetY));
+                }
+            }
+
+            onTouchJoystick(touchPoint) {
+                const joystickVector = touchPoint.subtract(this.joystickButtonDownPos);
+                if (joystickVector.length() > this.joystickCircleRadius)
+                    joystickVector.scaleInPlace(this.joystickCircleRadius / joystickVector.length());
+                this.joystickPuck.left = joystickVector.x;
+                this.joystickPuck.top = joystickVector.y;
+
+                this.joystickDelta = joystickVector.scaleInPlace(this.camera.speed / this.joystickCircleRadius);
+            }
+
+            onTouchSwipe(touchOffset) {
+                let directionAdjust = 1;
+                if (this.camera.getScene().useRightHandedSystem) directionAdjust *= -1;
+                if (this.camera.parent && this.camera.parent._getWorldMatrixDeterminant() < 0)
+                    directionAdjust *= -1;
+
+                this.camera.cameraRotation.y +=
+                    ((directionAdjust * touchOffset.x) / this.screenSize.x) * this.SWIPE_SENSIBILITY;
+                this.camera.cameraRotation.x += (touchOffset.y / this.screenSize.x) * this.SWIPE_SENSIBILITY;
+            }
+
+            onButtonDown(evt) {
+                if (evt.offsetX < this.screenSize.x * this.JOYSTICK_TOUCH_AREA_HORIZONTAL_SCREEN_SHARE)
+                    this.onButtonDownJoystick(evt);
+            }
+
+            onButtonDownJoystick(evt) {
+                let point = new BABYLON.Vector2(evt.offsetX, evt.offsetY);
+                this.joystickPointerId = evt.pointerId;
+                this.joystickButtonDownPos = point;
+                this.joystickButtonDownPosOffset = new BABYLON.Vector2(evt.clientX - point.x, evt.clientY - point.y);
+                this.joystickContainer.left = point.x - this.joystickContainer.widthInPixels / 2;
+                this.joystickContainer.top = point.y - this.joystickContainer.heightInPixels / 2;
+                this.joystickContainer.isVisible = true;
+            }
+
+            onButtonUp(evt) {
+                if (evt.pointerId === this.joystickPointerId) this.onButtonUpJoystick();
+            }
+
+            onButtonUpJoystick() {
+                this.joystickPointerId = null;
+                this.joystickDelta.scaleInPlace(0);
+                this.joystickContainer.isVisible = false;
+            }
+        }
+
+        const scene = createScene(); //Call the createScene function
+
+        // Register a render loop to repeatedly render the scene
+        engine.runRenderLoop(function () {
+            scene.render();
+        });
+
+        // Watch for browser/canvas resize events
+        window.addEventListener("resize", function () {
+            engine.resize();
+        });
+    </script>
+
+</body>
+
+</html>
